@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Real-Time Poll Rooms</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Real-Time Poll Rooms</h1>
+      <p class="subtitle">Create a poll, share the link, and watch votes update live.</p>
+
+      <section id="createView" class="card">
+        <h2>Create Poll</h2>
+        <form id="createForm">
+          <label>
+            Question
+            <input id="question" type="text" placeholder="What should we have for lunch?" required minlength="5" />
+          </label>
+
+          <div id="options"></div>
+          <button type="button" id="addOption">+ Add option</button>
+          <button type="submit">Create poll</button>
+        </form>
+        <p id="createError" class="error"></p>
+        <div id="shareBox" class="hidden">
+          <p>Share this link:</p>
+          <input id="shareLink" readonly />
+          <button id="copyLink" type="button">Copy link</button>
+        </div>
+      </section>
+
+      <section id="pollView" class="card hidden">
+        <h2 id="pollQuestion"></h2>
+        <form id="voteForm"></form>
+        <p id="voteMessage"></p>
+        <p id="totalVotes"></p>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>
