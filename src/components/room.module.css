@@ -1,0 +1,34 @@
+.card { display: grid; gap: 16px; }
+.headerRow { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.headerRow h1 { margin: 0; font-size: 1.35rem; }
+.badge { border-radius: 999px; padding: 6px 10px; font-size: 0.85rem; font-weight: 600; }
+.live { background: #e5f9ec; color: #007a33; }
+.closed { background: #ffe8e8; color: #9f1f1f; }
+.shareBox { display: grid; grid-template-columns: 1fr auto; gap: 8px; }
+.shareBox input { border: 1px solid #d8ddee; border-radius: 10px; padding: 10px; }
+.shareBox button { border: none; background: #335cff; color: #fff; border-radius: 10px; padding: 10px 12px; }
+.totalVotes {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #1b2a66;
+}
+
+.voteList { display: grid; gap: 10px; }
+.voteList button {
+  border: 1px solid #d4dbf3; background: #f9faff; border-radius: 12px; padding: 12px;
+  display: flex; justify-content: space-between; align-items: center;
+}
+.voteList .selected { border-color: #335cff; background: #eaf0ff; }
+.results { border-top: 1px solid #eceff8; padding-top: 12px; }
+.resultRow { display: grid; gap: 4px; margin-bottom: 10px; }
+.resultMeta { display: flex; justify-content: space-between; font-size: 0.92rem; }
+.barTrack { background: #e8ecff; border-radius: 999px; overflow: hidden; height: 10px; }
+.barFill { background: linear-gradient(90deg, #456dff, #6f8cff); height: 100%; transition: width 0.35s ease; }
+.voteMsg { margin: 0; font-weight: 600; }
+.error { margin: 0; color: #af1f1f; }
+.liveFeedback { margin: 0; color: #2857ff; animation: pulse 0.8s ease; }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+@media (max-width: 640px) {
+  .shareBox { grid-template-columns: 1fr; }
+}
