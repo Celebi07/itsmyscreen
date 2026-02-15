@@ -9,8 +9,8 @@ A full-stack poll room app built with Next.js App Router, TypeScript, Supabase P
 - Realtime vote updates across clients.
 - Persistent polls and votes in Supabase.
 - Fairness controls:
-  1. **One vote per poll per device** via `device_id` cookie + salted `voter_hash` + DB uniqueness.
-  2. **Per-poll IP rate limit** hashed `ip_hash`, max **5 votes/minute**.
+  1. **One vote per poll per device** via `device_id` (httpOnly cookie) + localStorage backup id + salted `voter_hash` + DB uniqueness.
+  2. **Per-poll IP protections** with hashed `ip_hash`: max **5 votes/minute** plus a short recent-vote duplicate heuristic.
 
 ## Environment variables
 Copy `.env.example` to `.env.local` and fill:
@@ -36,12 +36,13 @@ Run `supabase/migrations/001_init.sql` in Supabase SQL editor.
 3. Keep Realtime enabled for the project.
 
 ## Anti-abuse mechanisms and limitations
-1. **Device lock (cookie + voter hash)**
-   - Prevents repeat voting from the same browser device for same poll.
-   - Limitation: clearing cookies/private mode/new device can bypass.
-2. **IP rate limit (hashed)**
-   - Prevents high-frequency vote spam bursts from the same IP on same poll.
-   - Limitation: shared NAT can affect many users; VPN/IP rotation can bypass.
+1. **Device lock (cookie + localStorage backup + voter hash)**
+   - Server uses httpOnly cookie when available; if missing, it can accept a client localStorage id and align cookie to it.
+   - Prevents most repeat voting attempts across normal/incognito transitions on the same device profile.
+   - Limitation: localStorage is client-controlled and fresh private contexts/new devices can still bypass.
+2. **IP protections (hashed)**
+   - Per-poll rate limit blocks bursts (5/min), and a short recent-vote heuristic blocks immediate same-network re-votes.
+   - Limitation: shared networks may see temporary blocks; VPN/IP rotation can still bypass.
 
 ## Edge cases handled
 - Duplicate options (case and whitespace insensitive) rejected.

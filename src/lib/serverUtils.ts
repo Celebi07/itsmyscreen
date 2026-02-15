@@ -7,6 +7,17 @@ export function ensureDeviceId(existing?: string): string {
   return existing ?? crypto.randomUUID();
 }
 
+export function normalizeClientDeviceId(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const normalized = value.trim();
+  if (!/^[a-zA-Z0-9_-]{16,128}$/.test(normalized)) {
+    return undefined;
+  }
+  return normalized;
+}
+
 export function hashSha256(input: string): string {
   return crypto.createHash("sha256").update(input).digest("hex");
 }

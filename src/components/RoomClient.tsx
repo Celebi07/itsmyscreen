@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { RealtimeChannel } from "@supabase/supabase-js";
 import { getSupabaseClient } from "@/lib/supabaseClient";
 import { PollDetails } from "@/lib/types";
 import styles from "./room.module.css";
@@ -8,6 +9,18 @@ import styles from "./room.module.css";
 type RoomClientProps = {
   initialPoll: PollDetails;
 };
+
+const LOCAL_DEVICE_KEY = "poll_device_id";
+
+function getOrCreateLocalDeviceId(): string {
+  const existing = window.localStorage.getItem(LOCAL_DEVICE_KEY);
+  if (existing) {
+    return existing;
+  }
+  const created = `${crypto.randomUUID().replace(/-/g, "")}`;
+  window.localStorage.setItem(LOCAL_DEVICE_KEY, created);
+  return created;
+}
 
 export function RoomClient({ initialPoll }: RoomClientProps) {
   const [poll, setPoll] = useState(initialPoll);
@@ -18,6 +31,8 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
   const [shareUrl, setShareUrl] = useState(`/room/${initialPoll.code}`);
   const [copied, setCopied] = useState(false);
   const [liveMessage, setLiveMessage] = useState<string | null>(null);
+  const reconnectTimerRef = useRef<number | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
   const lastReconnectMessageAt = useRef(0);
 
   useEffect(() => {
@@ -40,7 +55,7 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
         setPoll(payload.data);
         if (showLiveBadge) {
           setLiveMessage("Updated live");
-          setTimeout(() => setLiveMessage(null), 1200);
+          window.setTimeout(() => setLiveMessage(null), 1200);
         }
       } catch (error) {
         console.error(error);
@@ -51,32 +66,67 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
   );
 
   useEffect(() => {
-    const channel = getSupabaseClient()
-      .channel(`poll-${poll.id}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "votes", filter: `poll_id=eq.${poll.id}` },
-        () => {
-          void fetchLatest(true);
-        },
-      )
-      .subscribe((status) => {
-        if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-          const now = Date.now();
-          if (now - lastReconnectMessageAt.current > 8000) {
-            setLiveMessage("Reconnecting live updates...");
-            lastReconnectMessageAt.current = now;
-          }
-        }
-      });
+    const supabase = getSupabaseClient();
 
-    const intervalId = setInterval(() => {
-      void fetchLatest(false);
-    }, 5000);
+    const startChannel = () => {
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+      }
+
+      const channel = supabase
+        .channel(`poll-${poll.id}-${Date.now()}`)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "votes", filter: `poll_id=eq.${poll.id}` },
+          () => {
+            void fetchLatest(true);
+          },
+        )
+        .subscribe((status) => {
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            const now = Date.now();
+            if (now - lastReconnectMessageAt.current > 8000) {
+              setLiveMessage("Reconnecting live updates...");
+              lastReconnectMessageAt.current = now;
+            }
+            if (reconnectTimerRef.current) {
+              window.clearTimeout(reconnectTimerRef.current);
+            }
+            reconnectTimerRef.current = window.setTimeout(() => {
+              startChannel();
+            }, 1200);
+          }
+        });
+
+      channelRef.current = channel;
+    };
+
+    startChannel();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void fetchLatest(true);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void fetchLatest(false);
+      }
+    }, 15000);
 
     return () => {
-      clearInterval(intervalId);
-      void getSupabaseClient().removeChannel(channel);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.clearInterval(intervalId);
+      if (reconnectTimerRef.current) {
+        window.clearTimeout(reconnectTimerRef.current);
+      }
+      if (channelRef.current) {
+        void supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [fetchLatest, poll.id]);
 
@@ -95,7 +145,7 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
       const response = await fetch(`/api/polls/${poll.code}/vote`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ optionId }),
+        body: JSON.stringify({ optionId, deviceId: getOrCreateLocalDeviceId() }),
       });
       const payload = await response.json();
 
@@ -110,7 +160,7 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
       if (payload.data?.poll) {
         setPoll(payload.data.poll as PollDetails);
         setLiveMessage("Updated live");
-        setTimeout(() => setLiveMessage(null), 1200);
+        window.setTimeout(() => setLiveMessage(null), 1200);
       } else {
         await fetchLatest(true);
       }
@@ -137,7 +187,7 @@ export function RoomClient({ initialPoll }: RoomClientProps) {
           onClick={async () => {
             await navigator.clipboard.writeText(shareUrl);
             setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
+            window.setTimeout(() => setCopied(false), 1200);
           }}
         >
           {copied ? "Copied ✓" : "Copy"}

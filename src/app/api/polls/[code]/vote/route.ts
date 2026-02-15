@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { fetchPollByCode } from "@/lib/pollData";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { DEVICE_COOKIE, buildIpHash, buildVoterHash, ensureDeviceId, getIpAddress } from "@/lib/serverUtils";
+import {
+  DEVICE_COOKIE,
+  buildIpHash,
+  buildVoterHash,
+  ensureDeviceId,
+  getIpAddress,
+  normalizeClientDeviceId,
+} from "@/lib/serverUtils";
 
 export async function POST(req: NextRequest, { params }: { params: { code: string } }) {
   const supabaseAdmin = getSupabaseAdmin();
@@ -51,8 +58,29 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
       );
     }
 
-    const existingDeviceId = req.cookies.get(DEVICE_COOKIE.key)?.value;
-    const deviceId = ensureDeviceId(existingDeviceId);
+    const immediateWindow = new Date(Date.now() - 45_000).toISOString();
+    const { count: recentCount, error: recentIpError } = await supabaseAdmin
+      .from("votes")
+      .select("id", { count: "exact", head: true })
+      .eq("poll_id", poll.id)
+      .eq("ip_hash", ipHash)
+      .gte("created_at", immediateWindow);
+
+    if (recentIpError) {
+      console.error("Recent IP vote check error", recentIpError);
+      return NextResponse.json({ error: "Failed duplicate vote check.", code: "SERVER_ERROR" }, { status: 500 });
+    }
+
+    if ((recentCount ?? 0) > 0) {
+      return NextResponse.json(
+        { error: "A vote from this network was just recorded. Please wait briefly.", code: "DUPLICATE_IP_RECENT" },
+        { status: 409 },
+      );
+    }
+
+    const cookieDeviceId = req.cookies.get(DEVICE_COOKIE.key)?.value;
+    const clientDeviceId = normalizeClientDeviceId(body.deviceId);
+    const deviceId = ensureDeviceId(cookieDeviceId ?? clientDeviceId);
     const voterHash = buildVoterHash(poll.id, deviceId);
 
     const { error: voteError } = await supabaseAdmin.from("votes").insert({
@@ -77,7 +105,7 @@ export async function POST(req: NextRequest, { params }: { params: { code: strin
       { status: 201 },
     );
 
-    if (!existingDeviceId) {
+    if (!cookieDeviceId || cookieDeviceId !== deviceId) {
       response.cookies.set({
         name: DEVICE_COOKIE.key,
         value: deviceId,
